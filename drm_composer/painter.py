@@ -10,7 +10,7 @@ downstream in drm_screen's backend.
 """
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageColor
 
 from drm_screen.commands import CreateLayer, PlaceRawBuffer
 
@@ -21,17 +21,18 @@ _BUTTON_Z_OFFSET = 1000
 
 
 def _rgba(color: str) -> tuple[int, int, int, int]:
-    """Parse #rgb / #rrggbb / #rrggbbaa (and a few names) -> (r,g,b,a)."""
-    named = {"white": "#ffffff", "black": "#000000", "red": "#ff0000",
-             "green": "#00ff00", "blue": "#0000ff"}
-    c = named.get(color.strip().lower(), color).lstrip("#")
-    if len(c) == 3:
-        c = "".join(ch * 2 for ch in c)
-    if len(c) == 6:
-        c += "ff"
-    if len(c) != 8:
-        raise ValueError(f"bad color {color!r}")
-    return tuple(int(c[i:i + 2], 16) for i in (0, 2, 4, 6))
+    """Parse a CSS color -> (r, g, b, a), the forgiving HTML way.
+
+    Delegates to Pillow's ImageColor, so the full CSS range works: named colors
+    (`red`, `navy`, `rebeccapurple`, …), `#rgb` / `#rgba` / `#rrggbb` /
+    `#rrggbbaa`, and `rgb()` / `rgba()` / `hsl()`.  An unrecognized value is
+    treated as transparent (ignored) rather than raising.
+    """
+    try:
+        c = ImageColor.getrgb(color.strip())
+    except (ValueError, AttributeError):
+        return (0, 0, 0, 0)
+    return c if len(c) == 4 else c + (255,)
 
 
 def _font(size: int):

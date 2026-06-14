@@ -12,20 +12,50 @@ Constrained, declarative markup.  Supported elements:
       </layer>
     </screen>
 
+Values are parsed the forgiving way HTML is: lengths tolerate units and accept
+percentages of the screen (`x="50%"`, `w="20px"`); colors accept the full CSS
+range (names, `#rgb`/`#rgba`/`#rrggbb`/`#rrggbbaa`, `rgb()`, `rgba()`).  A missing
+or unparseable value falls back to the element default rather than raising.
+
 `<button>` and `<a>` both compile to interactive layers (a click yields a
-hit_id): a button's hit_id is its `id`; a link's is `href:<href>`.  Text content
-is the character data inside the element.  Built on stdlib html.parser — no
-external dependency.
+hit_id): a button's hit_id is its `id`; a link's is `href:<href>`.  Built on
+stdlib html.parser — no external dependency.
 """
+
+import re
 
 from html.parser import HTMLParser
 
 from .scene import Scene, LayerNode, BoxNode, TextNode, ImageNode, ButtonNode
 
+_NUM = re.compile(r"[-+]?\d*\.?\d+")
 
-def _int(attrs, key, default=None):
-    v = attrs.get(key)
-    return int(v) if v is not None else default
+
+def _num(s: str):
+    """First number in a string, or None — '20px' -> 20.0, 'auto' -> None."""
+    m = _NUM.search(s)
+    return float(m.group()) if m else None
+
+
+def _length(value, default, ref=None):
+    """HTML-style length -> int pixels.
+
+    Takes the leading number and ignores any trailing unit ('px', 'em', …);
+    a trailing '%' is resolved against `ref` (a screen dimension) when given.
+    Missing or unparseable -> `default` (never raises).
+    """
+    if value is None:
+        return default
+    s = value.strip().lower()
+    if not s:
+        return default
+    if s.endswith("%"):
+        n = _num(s[:-1])
+        if n is None:
+            return default
+        return int(round(n / 100.0 * ref)) if ref is not None else int(round(n))
+    n = _num(s)
+    return default if n is None else int(round(n))
 
 
 def _bool(attrs, key, default=True):
@@ -41,41 +71,48 @@ class _SceneParser(HTMLParser):
         self.scene: Scene | None = None
         self._layer: LayerNode | None = None
         self._text: TextNode | None = None     # open <text> collecting char data
-        self._button: ButtonNode | None = None  # open <button> collecting its label
+        self._button: ButtonNode | None = None  # open <button>/<a> collecting label
+
+    # length helpers: x/w resolve % against screen width, y/h against height
+    def _w(self, a, key, default=0):
+        return _length(a.get(key), default, self.scene.width)
+
+    def _h(self, a, key, default=0):
+        return _length(a.get(key), default, self.scene.height)
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         if tag == "screen":
-            self.scene = Scene(width=_int(a, "width", 1920),
-                               height=_int(a, "height", 1080))
+            self.scene = Scene(width=_length(a.get("width"), 1920),
+                               height=_length(a.get("height"), 1080))
         elif tag == "layer":
             self._require_scene(tag)
             self._layer = LayerNode(
                 id=a.get("id") or f"layer{len(self.scene.layers)}",
-                z=_int(a, "z", 0),
+                z=_length(a.get("z"), 0),
                 visible=_bool(a, "visible", True),
             )
             self.scene.layers.append(self._layer)
         elif tag == "box":
             self._require_layer(tag)
             self._layer.children.append(BoxNode(
-                x=_int(a, "x", 0), y=_int(a, "y", 0),
-                w=_int(a, "w", 0), h=_int(a, "h", 0),
+                x=self._w(a, "x"), y=self._h(a, "y"),
+                w=self._w(a, "w"), h=self._h(a, "h"),
                 color=a.get("color", "#000000ff"),
             ))
         elif tag == "img":
             self._require_layer(tag)
             self._layer.children.append(ImageNode(
                 src=a["src"],
-                x=_int(a, "x", 0), y=_int(a, "y", 0),
-                w=_int(a, "w", None), h=_int(a, "h", None),
+                x=self._w(a, "x"), y=self._h(a, "y"),
+                w=self._w(a, "w", None), h=self._h(a, "h", None),
             ))
         elif tag == "text":
             self._require_layer(tag)
             self._text = TextNode(
                 text="",
-                x=_int(a, "x", 0), y=_int(a, "y", 0),
-                size=_int(a, "size", 16),
+                x=self._w(a, "x"), y=self._h(a, "y"),
+                size=_length(a.get("size"), 16),
                 color=a.get("color", "#ffffffff"),
             )
             self._layer.children.append(self._text)
@@ -87,11 +124,11 @@ class _SceneParser(HTMLParser):
             hit_id = ("href:" + a["href"]) if tag == "a" else a["id"]
             self._button = ButtonNode(
                 id=hit_id,
-                x=_int(a, "x", 0), y=_int(a, "y", 0),
-                w=_int(a, "w", 0), h=_int(a, "h", 0),
+                x=self._w(a, "x"), y=self._h(a, "y"),
+                w=self._w(a, "w"), h=self._h(a, "h"),
                 color=a.get("color", "#3060a0ff"),
                 text_color=a.get("text-color", "#ffffffff"),
-                size=_int(a, "size", 28),
+                size=_length(a.get("size"), 28),
             )
             self._layer.children.append(self._button)
 

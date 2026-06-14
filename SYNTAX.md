@@ -42,19 +42,25 @@ A minimal valid document:
 These rules apply to **every** attribute below — they are enforced by the shared
 parser helpers, so they behave identically on every element.
 
-### Integers — no units, ever
+### Lengths — numbers, units, and percentages
 
 Every numeric attribute (`x`, `y`, `w`, `h`, `z`, `size`, `width`, `height`) is
-parsed with `int(value)`. That means:
+parsed the forgiving way HTML is: the **leading number is taken, any unit is
+ignored**, and the result is rounded to an integer pixel. A trailing **`%`** on a
+position/size (`x`/`y`/`w`/`h`) is resolved against the screen — width for
+`x`/`w`, height for `y`/`h`.
 
-- ✅ `x="20"` → `20`
-- ❌ `x="20px"` → **raises `ValueError`** — there is no unit support
-- ❌ `w="50%"` → **raises `ValueError`** — there are no percentages
-- ❌ `x="20.5"` → **raises `ValueError`** — integers only, no floats
-- ❌ `x=""` (empty) → **raises `ValueError`**
+- ✅ `x="20"`       → `20`
+- ✅ `x="20px"`     → `20`  (unit ignored)
+- ✅ `x="20.5"`     → `20`  (rounded to the nearest pixel)
+- ✅ `size="1.5em"` → `2`
+- ✅ `w="50%"`  on an 800-wide screen → `400`
+- ✅ `h="100%"` on a 480-tall screen → `480`
+- ⚪ `x="auto"`, `x=""`, or any value with no number → the attribute's **default**
 
-Omitting a numeric attribute entirely is fine — it falls back to the documented
-default. Only a *present but non-integer* value crashes.
+**Nothing here raises** — a missing or unparseable value just uses the default.
+`%` is only resolved for `x`/`y`/`w`/`h`; on `z`/`size`/`width`/`height` (which
+have no screen reference) a `%` value is taken as the bare number.
 
 ### Booleans
 
@@ -70,17 +76,22 @@ Any other value — including `visible="true"`, `visible="yes"`, or
 
 ### Colors
 
-`color` accepts (case-insensitive):
+`color` (and `text-color`) accept the **full CSS range** — parsing is delegated
+to Pillow's `ImageColor`, so anything CSS understands works (case-insensitive):
 
 | Form | Example | Notes |
 |---|---|---|
-| `#rgb`        | `#f0c`        | each digit doubled → `#ff00cc`, alpha `ff` |
-| `#rrggbb`     | `#141e3c`     | alpha defaults to `ff` (opaque) |
-| `#rrggbbaa`   | `#000000aa`   | explicit alpha — `aa` ≈ 67% opaque |
-| named         | `white`       | only: `white black red green blue` |
+| named              | `navy`, `rebeccapurple` | the full CSS color list, not just a handful |
+| `#rgb`             | `#f0c`        | each digit doubled → `#ff00cc`, alpha `ff` |
+| `#rgba`            | `#f0c8`       | 4-digit, with alpha |
+| `#rrggbb`          | `#141e3c`     | alpha defaults to `ff` (opaque) |
+| `#rrggbbaa`        | `#000000aa`   | explicit alpha — `aa` ≈ 67% opaque |
+| `rgb()` / `rgba()` | `rgb(255,0,0)`, `rgba(0,0,0,128)` | components 0–255; rgba alpha is 0–255 |
+| `hsl()`            | `hsl(120,100%,50%)` | also accepted |
 
-Anything else — other CSS names (`navy`, `orange`), `rgb(...)`, 4-digit hex —
-**raises `ValueError: bad color`**. The `#` is optional but conventional.
+An **unrecognized** color is treated as **transparent** `(0,0,0,0)` — ignored,
+not an error — so a typo makes one element invisible instead of crashing the
+whole scene. The `#` on hex is optional but conventional.
 
 Alpha matters: it is the layer-local pixel alpha that `drm_screen` blends when
 compositing. `#000000aa` gives you a translucent dark scrim; `#000000` (=`ff`)
@@ -395,8 +406,6 @@ headless end-to-end run.
 | `<img>` without `src` | `KeyError: 'src'` |
 | `<button>` without `id` | `KeyError: 'id'` |
 | `<a>` without `href` | `KeyError: 'href'` |
-| Non-integer numeric value (`"20px"`, `"50%"`, `"1.5"`, `""`) | `ValueError` (from `int()`) |
-| Unrecognized `color` | `ValueError: bad color '<value>'` |
 | `<img src="…">` pointing at a missing/unreadable file | `FileNotFoundError` / `PIL.UnidentifiedImageError` |
 
 **Silently ignored (no error):**
@@ -405,6 +414,9 @@ headless end-to-end run.
   This includes `<raw-buffer>` (see below).
 - **Unknown attributes** — e.g. `opacity`, `id` on a `<box>`, `style`, classes.
   They are parsed but never read.
+- **Bad lengths and colors** — a value with no number (`x="auto"`) falls back to
+  the default; an unrecognized color renders transparent. Neither raises — see
+  [Value formats](#value-formats-read-this-first).
 
 ---
 
@@ -419,8 +431,12 @@ a handler exists:
   directly if you need to blit raw bytes.
 - **Relative / nested layout** — boxes are not containers; all coordinates are
   screen-absolute (see [the coordinate note](#coordinate-system--absolute-per-screen)).
-- **CSS, `style=` attributes, classes, units (`px`/`%`), font-family selection,
-  text wrapping, image aspect-fit** — none are parsed.
+- **`style=` attributes, CSS rules, classes, font-family selection, text
+  wrapping, image aspect-fit** — not parsed. (Lengths *do* now accept units and
+  `%`, and colors accept the full CSS range — see
+  [Value formats](#value-formats-read-this-first).)
+- **`%` on `z` / `size` / screen `width` / `height`** — taken as the bare number,
+  not resolved (there is no screen reference for those attributes).
 
 If you add any of these, update this file alongside the parser so the reference
 stays generated-from-code.
