@@ -9,6 +9,7 @@ from .scene import Scene, LayerNode, BoxNode, TextNode, ImageNode, ButtonNode
 from .parser import parse_scene
 from .painter import paint_scene
 from .compositor import Compositor
+from .actions import Action, parse_action, Dispatcher
 
 from importlib.metadata import version, PackageNotFoundError
 try:
@@ -18,5 +19,6 @@ except PackageNotFoundError:
 
 __all__ = [
     "Scene", "LayerNode", "BoxNode", "TextNode", "ImageNode", "ButtonNode",
-    "parse_scene", "paint_scene", "Compositor", "__version__",
+    "parse_scene", "paint_scene", "Compositor",
+    "Action", "parse_action", "Dispatcher", "__version__",
 ]

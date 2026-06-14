@@ -357,6 +357,46 @@ So the batch grows by two commands per interactive element. `drm_screen.hit_test
 walks the interactive layers top-down by `z` and returns the `hit_id` under a
 point; the app routes it (e.g. an action id, or a `href:` link to a page).
 
+### Routing hits — `drm_composer.actions`
+
+`drm_screen.hit_test` returns the `hit_id` as an **opaque string**; it has no idea
+what the string means. `drm_composer` *generates* those ids, so it owns their
+grammar — exposed as a small, pure consumer API (no Pillow, no display):
+`parse_action()` turns a raw `hit_id` into a structured `Action`, and `Dispatcher`
+routes it to **host-supplied** callables. **`drm_composer` never executes
+anything** — the app is the sole executor.
+
+The `hit_id` grammar is `kind:payload` (a bare id with no recognized prefix is an
+`action`):
+
+| `hit_id` | `parse_action(...)` | Emitted by |
+|---|---|---|
+| `href:settings.html` | `Action("navigate", target="settings.html")` | `<a href>` |
+| `quit` (bare) | `Action("action", target="quit")` | `<button id>` |
+| `cmd:reboot` | `Action("command", target="reboot")` | *(no tag yet — reserved)* |
+| `play:/media/clip.mp4` | `Action("play", target="/media/clip.mp4")` | *(no tag yet — reserved)* |
+| `set:brightness=80` | `Action("set", target="brightness", value="80")` | *(no tag yet — reserved)* |
+
+> Today only `<a>` (→ `href:`) and `<button>` (→ its bare `id`) emit ids. The
+> `cmd:` / `play:` / `set:` prefixes are part of the grammar `parse_action`
+> understands, but **no element emits them yet** — they are reserved for planned
+> `<button action>`, `<video launch>`, and `<input>` tags. `parse_action` is total
+> (never raises); an empty or unknown-prefix id becomes a bare `action`.
+
+`Dispatcher` is **allowlist-by-registration**: only the handlers the host registers
+can fire; an unregistered command / setting key / action is a silent no-op.
+
+```python
+from drm_composer import parse_action, Dispatcher
+
+disp = (Dispatcher()
+        .on_navigate(app.goto)             # href:<page>
+        .on_action("quit", app.stop)       # bare "quit"
+        .on_command("reboot", do_reboot))  # cmd:reboot allowed; cmd:rm-rf is a no-op
+
+disp.dispatch(parse_action(service.hit_test(x, y)))   # None / unknown hit → no-op
+```
+
 You can inspect the batch without a display:
 
 ```python
