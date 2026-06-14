@@ -4,14 +4,18 @@ Constrained, declarative markup.  Supported elements:
 
     <screen width="800" height="480">
       <layer id="status" z="10" visible="true">
-        <box  x="20" y="20" w="300" h="80" color="#000000cc" />
-        <text x="40" y="56" size="22" color="#ffffff">Ready</text>
-        <img  src="logo.png" x="240" y="20" w="64" h="64" />
+        <box    x="20" y="20" w="300" h="80" color="#000000cc" />
+        <text   x="40" y="56" size="22" color="#ffffff">Ready</text>
+        <img    src="logo.png" x="240" y="20" w="64" h="64" />
+        <button id="ok" x="40" y="120" w="120" h="48">OK</button>
+        <a href="next.html" x="200" y="120" w="120" h="48">Next</a>
       </layer>
     </screen>
 
-Text content is the character data inside <text>...</text>.  Built on stdlib
-html.parser — no external dependency.
+`<button>` and `<a>` both compile to interactive layers (a click yields a
+hit_id): a button's hit_id is its `id`; a link's is `href:<href>`.  Text content
+is the character data inside the element.  Built on stdlib html.parser — no
+external dependency.
 """
 
 from html.parser import HTMLParser
@@ -75,10 +79,14 @@ class _SceneParser(HTMLParser):
                 color=a.get("color", "#ffffffff"),
             )
             self._layer.children.append(self._text)
-        elif tag == "button":
+        elif tag in ("button", "a"):
             self._require_layer(tag)
+            # <a href="X"> is a navigation link — it reuses the button machinery,
+            # with hit_id "href:X" so the app routes it to a page. <button id="X">
+            # is an action (the app chooses what id means).
+            hit_id = ("href:" + a["href"]) if tag == "a" else a["id"]
             self._button = ButtonNode(
-                id=a["id"],
+                id=hit_id,
                 x=_int(a, "x", 0), y=_int(a, "y", 0),
                 w=_int(a, "w", 0), h=_int(a, "h", 0),
                 color=a.get("color", "#3060a0ff"),
@@ -97,7 +105,7 @@ class _SceneParser(HTMLParser):
         if tag == "text" and self._text is not None:
             self._text.text = self._text.text.strip()
             self._text = None
-        elif tag == "button" and self._button is not None:
+        elif tag in ("button", "a") and self._button is not None:
             self._button.label = self._button.label.strip()
             self._button = None
         elif tag == "layer":
