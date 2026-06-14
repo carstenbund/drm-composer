@@ -1,8 +1,8 @@
-# drm-composer
+# drm_composer
 
 Stateless scene-to-screen-command compiler. Parses a declarative HTML-like
 scene, rasterizes elements to **RGBA** bitmaps, and emits commands for
-[`drm-screen`](../drm-screen).
+[`drm_screen`](../drm_screen).
 
 Python package: `drm_composer`.
 
@@ -19,6 +19,6 @@ drm_composer  →  drm_screen  →  drm-display
 - Translates layers into `drm_screen` commands
 
 It holds **no** screen state, does **not** blend the final frame (that's
-`drm_screen`'s compositor), and does **not** know DRM/KMS (that's `drm-display`).
+`drm_screen`'s compositor), and does **not** know DRM/KMS (that's `drm_display`).
 
 See [outline.md](outline.md) for the design.
