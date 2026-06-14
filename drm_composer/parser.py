@@ -106,6 +106,7 @@ class _SceneParser(HTMLParser):
                 src=a["src"],
                 x=self._w(a, "x"), y=self._h(a, "y"),
                 w=self._w(a, "w", None), h=self._h(a, "h", None),
+                fit=a.get("fit", "fill").strip().lower(),
             ))
         elif tag == "text":
             self._require_layer(tag)

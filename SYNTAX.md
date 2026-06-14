@@ -231,6 +231,7 @@ Pastes an image file, alpha-composited onto the layer. Must be inside a
 | `y`   | int    | `0`            | Top edge (screen-absolute) |
 | `w`   | int    | native width   | Target width — see resize rule below |
 | `h`   | int    | native height  | Target height — see resize rule below |
+| `fit` | string | `fill`         | How to fit into `w`×`h`: `fill` / `contain` / `cover` |
 
 Behaviour:
 
@@ -242,10 +243,16 @@ Behaviour:
 - The path is resolved by the **process running the compositor**, relative to its
   current working directory — there is no asset root or URL support. Prefer
   absolute paths or paths you control.
-- **Resize is all-or-nothing:** the image is scaled only when *both* `w` and `h`
-  are given (and non-zero). If you set only one — or neither — the image is
-  pasted at its **native size** and the lone dimension is ignored. There is no
-  aspect-ratio preservation; the resize is an exact `w`×`h` stretch.
+- **Sizing needs both `w` and `h`.** The image is scaled only when *both* are
+  given (and non-zero). Set only one — or neither — and it is pasted at its
+  **native size**, the lone dimension ignored.
+- **`fit` controls aspect** (when both `w`/`h` are set), CSS `object-fit`-style:
+  - `fill` (default) — stretch to exactly `w`×`h`; aspect **not** preserved.
+  - `contain` — scale so the whole image fits inside `w`×`h`, aspect kept; the
+    leftover is a **transparent letterbox**.
+  - `cover` — scale so the image **covers** `w`×`h`, aspect kept; the overflow is
+    centre-**cropped**.
+  An unrecognized `fit` value behaves as `fill`.
 
 ```html
 <img src="/opt/kiosk/logo.png" x="240" y="20" w="64" h="64" />
@@ -433,7 +440,7 @@ a handler exists:
 - **Relative / nested layout** — boxes are not containers; all coordinates are
   screen-absolute (see [the coordinate note](#coordinate-system--absolute-per-screen)).
 - **`style=` attributes, CSS rules, classes, font-family selection, text
-  wrapping, image aspect-fit** — not parsed. (Lengths *do* now accept units and
+  wrapping** — not parsed. (Lengths *do* now accept units and
   `%`, and colors accept the full CSS range — see
   [Value formats](#value-formats-read-this-first).)
 - **`%` on `z` / `size` / screen `width` / `height`** — taken as the bare number,

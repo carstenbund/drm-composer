@@ -33,6 +33,7 @@ class ImageNode:
     y: int = 0
     w: int | None = None       # None -> native size
     h: int | None = None
+    fit: str = "fill"          # fill (stretch) | contain (letterbox) | cover (crop)
 
 
 @dataclass
