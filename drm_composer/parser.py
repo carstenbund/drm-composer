@@ -137,10 +137,17 @@ class _SceneParser(HTMLParser):
             self._layer.children.append(self._text)
         elif tag in ("button", "a"):
             self._require_layer(tag)
-            # <a href="X"> is a navigation link — it reuses the button machinery,
-            # with hit_id "href:X" so the app routes it to a page. <button id="X">
-            # is an action (the app chooses what id means).
-            hit_id = ("href:" + a["href"]) if tag == "a" else a["id"]
+            # All three reuse the same interactive-layer machinery; only the
+            # hit_id prefix differs (the host routes on it):
+            #   <a href="X">            -> href:X   (navigate)
+            #   <button action="X">     -> cmd:X    (run an allowlisted command)
+            #   <button id="X">         -> X        (bare action, e.g. quit/back)
+            if tag == "a":
+                hit_id = "href:" + a["href"]
+            elif "action" in a:
+                hit_id = "cmd:" + a["action"]
+            else:
+                hit_id = a["id"]
             self._button = ButtonNode(
                 id=hit_id,
                 x=self._w(a, "x"), y=self._h(a, "y"),

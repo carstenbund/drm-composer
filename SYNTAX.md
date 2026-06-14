@@ -282,7 +282,8 @@ report which button a pointer is over.
 
 | Attribute | Type | Default | Meaning |
 |---|---|---|---|
-| `id`         | string | **required** | The button's `hit_id` (what `hit_test` returns) and its layer name |
+| `action`     | string | —            | If set, `hit_id` = `cmd:<action>` (a host command) |
+| `id`         | string | **required** unless `action` | `hit_id` = the id verbatim (a bare action like `quit`/`back`) and the layer name |
 | `x`          | int    | `0`          | Left edge (screen-absolute) |
 | `y`          | int    | `0`          | Top edge (screen-absolute) |
 | `w`          | int    | `0`          | Width in pixels |
@@ -291,9 +292,15 @@ report which button a pointer is over.
 | `text-color` | string | `#ffffffff`  | Label color (note the hyphen) |
 | `size`       | int    | `28`         | Label font size |
 
+`action` and `id` set the `hit_id` differently: `<button action="reboot">` →
+`cmd:reboot` (a command the host must allowlist via `Dispatcher.on_command`);
+`<button id="quit">` → `quit` (a bare action). `action` takes precedence; a
+`<button>` with neither raises `KeyError: 'id'`.
+
 Behaviour:
 
-- **`id` is mandatory.** A `<button>` without `id` raises `KeyError: 'id'`.
+- **`id` or `action` is required.** With `action` -> `hit_id` `cmd:<action>`; with
+  `id` -> the id verbatim. A `<button>` with neither raises `KeyError: 'id'`.
 - Compiles to its own `CreateLayer(name=id, …, interactive=True, hit_id=id)` plus
   a `PlaceRawBuffer`, emitted at **z = the parent layer's z + 1000** so buttons
   sit above their layer's painted content.
